@@ -2,7 +2,7 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 
-<title>PA#1</title>
+<title>PA#2</title>
 <style>
     body {
         background-color: #EEEEEE;
@@ -11,21 +11,37 @@
 
 <script src="./Utils/trackball-rotator.js"></script>
 <script src="./Utils/m4.js"></script>
-<script src="./Model.js"></script>
-<script src="./shader.gpu"></script>
-<script src="./main.js"></script>
+<script src="./shader.js"></script>
+<script src="./main.js" type="module"></script>
 
 </head>
-<body onload="init()">
 
 <h2>Surface of Revolution “Wellenkugel” by Ivashchuk Vladyslav TR-42mp</h2>
 
 <p id="message">Drag your mouse on the cube to rotate it.<br>
 (On a touch screen, you can use your finger.)</p>
 
-
-<div id="canvas-holder">
-   <canvas width="600" height="600" id="webglcanvas" style="background-color:red"></canvas>
+<div id="canvas-holder"></div>
+<article class="canvas-container">
+  <canvas width="1200" height="1200" id="webglcanvas" style="width: 400px; height: 400px"></canvas>
+  <section class="canvas-container__controls">
+    <h2>Control panel</h2>
+    <div class="form-input">
+      <label for="u-stepper">The number of U polylines</label>
+      <div class="form-input__slider">
+        <span id="u-counter" class="form-input__value">50</span>
+        <input type="range" name="u-stepper" id="u-stepper" min="20" max="100" value="50">
+      </div>
+    </div>
+    <div class="form-input">
+      <label for="v-stepper">The number of V polylines</label>
+      <div class="form-input__slider">
+        <span id="v-counter" class="form-input__value">50</span>
+        <input type="range" name="v-stepper" id="v-stepper" min="20" max="100" value="50">
+      </div>
+    </div>
+  </section>
+</article>
 </div>
 
 

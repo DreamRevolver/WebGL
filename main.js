@@ -1,125 +1,132 @@
-'use strict';
+import { Model } from "./Model.js";
+import { ShaderProgram } from "./ShaderProgram.js";
 
-let gl;                         // The webgl context.
-let surface;                    // A surface model
-let shProgram;                  // A shader program
-let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
+let gl;
+let surface;
+let program;
+let ball;
 
-function deg2rad(angle) {
-    return angle * Math.PI / 180;
+// Retrieves U and V step values from the UI controls.
+function getUVSteps() {
+	return {
+		u: Number.parseInt(document.getElementById("u-stepper").value, 10),
+		v: Number.parseInt(document.getElementById("v-stepper").value, 10),
+	};
 }
 
-// Constructor
-function ShaderProgram(name, program) {
-
-    this.name = name;
-    this.prog = program;
-
-    // Location of the attribute variable in the shader program.
-    this.iAttribVertex = -1;
-    // Location of the uniform specifying a color for the primitive.
-    this.iColor = -1;
-    // Location of the uniform matrix representing the combined transformation.
-    this.iModelViewProjectionMatrix = -1;
-
-    this.Use = function() {
-        gl.useProgram(this.prog);
-    }
+// Initializes the surface model with the current U and V steps.
+function initSurface() {
+	const { u, v } = getUVSteps();
+	surface = new Model("Surface", u, v);
+	surface.CreateSurfaceData();
+	surface.initBuffer(gl);
 }
 
-function draw() { 
-    gl.clearColor(0,0,0,1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
-    /* Set the values of the projection transformation */
-    let projection = m4.perspective(Math.PI/8, 1, 8, 12); 
-    
-    /* Get the view matrix from the SimpleRotator object.*/
-    let modelView = spaceball.getViewMatrix();
-
-    let rotateToPointZero = m4.axisRotation([0.707,0.707,0], 0.7);
-    let translateToPointZero = m4.translation(0,0,-10);
-
-    let matAccum0 = m4.multiply(rotateToPointZero, modelView );
-    let matAccum1 = m4.multiply(translateToPointZero, matAccum0 );
-        
-    /* Multiply the projection matrix times the modelview matrix to give the
-       combined transformation matrix, and send that to the shader program. */
-    let modelViewProjection = m4.multiply(projection, matAccum1 );
-
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
-    
-    /* Draw the six faces of a cube, with different colors. */
-    gl.uniform4fv(shProgram.iColor, [1,1,0,1] );
-
-    surface.Draw(gl,shProgram);
+// Initializes the shader program with vertex and fragment shaders.
+function initShaderProgram() {
+	program = new ShaderProgram("Basic");
+	program.init(gl, vertexShaderSource, fragmentShaderSource);
+	program.use(gl);
 }
 
-/* Initialize the WebGL context. Called from init() */
-function initGL() {
-    let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
+// Sets up UI controls for stepper inputs and their behavior.
+function setupUIControls() {
+	const stepperTypes = ["u", "v"];
 
-    shProgram = new ShaderProgram('Basic', prog);
-    shProgram.Use();
+	stepperTypes.forEach((type) => {
+		const stepper = document.getElementById(`${type}-stepper`);
+		const counter = document.getElementById(`${type}-counter`);
 
-    shProgram.iAttribVertex              = gl.getAttribLocation(prog, "vertex");
-    shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iColor                     = gl.getUniformLocation(prog, "color");
+		if (!stepper) {
+			console.error(`Stepper element with id '${type}-stepper' not found`);
+			return;
+		}
 
-    surface = new Model('Surface');
-    surface.CreateSurfaceData();
-    surface.BufferData(gl);
-
-    gl.enable(gl.DEPTH_TEST);
+		// Updates step value display and reinitializes the surface on input change.
+		stepper.addEventListener("input", (e) => {
+			if (counter) {
+				counter.textContent = e.target.value;
+			} else {
+				console.warn(`Counter element with id '${type}-counter' not found`);
+			}
+			initSurface();
+			draw();
+		});
+	});
 }
 
-function createProgram(gl, vShader, fShader) {
-    let vsh = gl.createShader( gl.VERTEX_SHADER );
-    gl.shaderSource(vsh,vShader);
-    gl.compileShader(vsh);
-    if ( ! gl.getShaderParameter(vsh, gl.COMPILE_STATUS) ) {
-        throw new Error("Error in vertex shader:  " + gl.getShaderInfoLog(vsh));
-     }
-    let fsh = gl.createShader( gl.FRAGMENT_SHADER );
-    gl.shaderSource(fsh, fShader);
-    gl.compileShader(fsh);
-    if ( ! gl.getShaderParameter(fsh, gl.COMPILE_STATUS) ) {
-       throw new Error("Error in fragment shader:  " + gl.getShaderInfoLog(fsh));
-    }
-    let prog = gl.createProgram();
-    gl.attachShader(prog,vsh);
-    gl.attachShader(prog, fsh);
-    gl.linkProgram(prog);
-    if ( ! gl.getProgramParameter( prog, gl.LINK_STATUS) ) {
-       throw new Error("Link error in program:  " + gl.getProgramInfoLog(prog));
-    }
-    return prog;
+// Animates the light source over time in a circular motion.
+function animateLight(time) {
+	const radius = 10.0;
+	const speed = 0.001;
+	const x = radius * Math.cos(time * speed); // Light's X position
+	const z = radius * Math.sin(time * speed); // Light's Z position
+	const y = 5.0; // Light's Y position
+
+	if (program) {
+		gl.uniform3f(program.lightDirectionUni, x, y, z); // Update light direction
+		draw();
+	}
+	requestAnimationFrame(animateLight); // Request next animation frame
 }
 
+// Draws the scene, including setting up projection and model-view matrices.
+function draw() {
+	gl.clearColor(1, 1, 1, 1); // Set background color to white
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // Clear buffers
+
+	const projection = m4.perspective(Math.PI / 8, 1, 1, 100); // Perspective projection matrix
+	const modelView = ball.getViewMatrix(); // View matrix from trackball interaction
+
+	const rotateToPointZero = m4.axisRotation(
+		[Math.SQRT1_2, Math.SQRT1_2, 0],
+		0.7,
+	); // Rotation matrix for alignment
+	const translateToPointZero = m4.translation(0, 0, -10); // Translation matrix
+
+	const matAcc0 = m4.multiply(rotateToPointZero, modelView); // Combined rotation and view matrix
+	const matAcc1 = m4.multiply(translateToPointZero, matAcc0); // Final model-view matrix
+
+	const modelViewProjection = m4.multiply(projection, matAcc1); // Model-view-projection matrix
+	gl.uniformMatrix4fv(program.matrixUni, false, modelViewProjection); // Pass to shader
+
+	const normalMatrix = m4.transpose(m4.inverse(matAcc1)); // Normal matrix
+	gl.uniformMatrix4fv(program.normalMatrixUni, false, normalMatrix); // Pass to shader
+
+	// Set lighting and material properties
+	gl.uniform3fv(program.viewPositionUni, [0.0, 0.0, 5.0]); // Camera position
+	gl.uniform3f(program.ambientColorUni, 0.2, 0.2, 0.2); // Ambient light
+	gl.uniform3f(program.diffuseColorUni, 0.7, 0.7, 0.7); // Diffuse light
+	gl.uniform3f(program.specularColorUni, 1.0, 1.0, 1.0); // Specular light
+	gl.uniform1f(program.shininessUni, 32.0); // Shininess factor
+
+	surface.Draw(gl, program); // Draw the surface
+}
+
+// Initializes WebGL, the shader program, surface model, and UI controls.
 function init() {
-    let canvas;
-    try {
-        canvas = document.getElementById("webglcanvas");
-        gl = canvas.getContext("webgl");
-        if ( ! gl ) {
-            throw "Browser does not support WebGL";
-        }
-    }
-    catch (e) {
-        document.getElementById("canvas-holder").innerHTML =
-            "<p>Sorry, could not get a WebGL graphics context.</p>";
-        return;
-    }
-    try {
-        initGL();  // initialize the WebGL graphics context
-    }
-    catch (e) {
-        document.getElementById("canvas-holder").innerHTML =
-            "<p>Sorry, could not initialize the WebGL graphics context: " + e + "</p>";
-        return;
-    }
+	try {
+		const canvas = document.querySelector("canvas");
+		gl = canvas.getContext("webgl");
+		if (!gl) {
+			throw "Browser does not support WebGL";
+		}
+		ball = new TrackballRotator(canvas, draw, 0); // Enable trackball rotation
 
-    spaceball = new TrackballRotator(canvas, draw, 0);
+		initShaderProgram(); // Initialize shaders
+		initSurface(); // Initialize the surface model
+		gl.enable(gl.DEPTH_TEST); // Enable depth testing
 
-    draw();
+		setupUIControls(); // Set up UI controls
+		draw(); // Initial draw
+		animateLight(0); // Start light animation
+	} catch (e) {
+		console.error(`Initialization error: ${e}`); // Log initialization errors
+		const errorMessage = document.createElement("p");
+		errorMessage.textContent = `Sorry, could not initialize the WebGL graphics context: ${e}`;
+		document.body.appendChild(errorMessage); // Display error message
+	}
 }
+
+// Waits for the DOM to fully load before initializing.
+document.addEventListener("DOMContentLoaded", init);
