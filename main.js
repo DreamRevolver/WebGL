@@ -82,7 +82,7 @@ function draw() {
 		[Math.SQRT1_2, Math.SQRT1_2, 0],
 		0.7,
 	); // Rotation matrix for alignment
-	const translateToPointZero = m4.translation(0, 0, -10); // Translation matrix
+	const translateToPointZero = m4.translation(0, 0, -80); // Translation matrix
 
 	const matAcc0 = m4.multiply(rotateToPointZero, modelView); // Combined rotation and view matrix
 	const matAcc1 = m4.multiply(translateToPointZero, matAcc0); // Final model-view matrix
