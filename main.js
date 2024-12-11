@@ -6,7 +6,6 @@ let surface;
 let program;
 let ball;
 
-// Retrieves U and V step values from the UI controls.
 function getUVSteps() {
 	return {
 		u: Number.parseInt(document.getElementById("u-stepper").value, 10),
@@ -14,25 +13,24 @@ function getUVSteps() {
 	};
 }
 
-// Initializes the surface model with the current U and V steps.
 function initSurface() {
 	const { u, v } = getUVSteps();
-	surface = new Model("Surface", u, v);
-	surface.CreateSurfaceData();
+	surface = new Model("Wellenkugel", u, v);
+	surface.createSurfaceData();
 	surface.initBuffer(gl);
+	surface.loadTextures(gl);
 }
 
-// Initializes the shader program with vertex and fragment shaders.
 function initShaderProgram() {
 	program = new ShaderProgram("Basic");
 	program.init(gl, vertexShaderSource, fragmentShaderSource);
 	program.use(gl);
 }
 
-// Sets up UI controls for stepper inputs and their behavior.
 function setupUIControls() {
 	const stepperTypes = ["u", "v"];
 
+	// biome-ignore lint/complexity/noForEach: <explanation>
 	stepperTypes.forEach((type) => {
 		const stepper = document.getElementById(`${type}-stepper`);
 		const counter = document.getElementById(`${type}-counter`);
@@ -42,7 +40,6 @@ function setupUIControls() {
 			return;
 		}
 
-		// Updates step value display and reinitializes the surface on input change.
 		stepper.addEventListener("input", (e) => {
 			if (counter) {
 				counter.textContent = e.target.value;
@@ -55,55 +52,52 @@ function setupUIControls() {
 	});
 }
 
-// Animates the light source over time in a circular motion.
 function animateLight(time) {
-	const radius = 10.0;
+	const radius = 300.0;
 	const speed = 0.001;
-	const x = radius * Math.cos(time * speed); // Light's X position
-	const z = radius * Math.sin(time * speed); // Light's Z position
-	const y = 5.0; // Light's Y position
+	const x = radius * Math.cos(time * speed);
+	const z = radius * Math.sin(time * speed);
+	const y = 5.0;
 
 	if (program) {
-		gl.uniform3f(program.lightDirectionUni, x, y, z); // Update light direction
+		gl.uniform3f(program.lightDirectionUni, x, y, z);
 		draw();
 	}
-	requestAnimationFrame(animateLight); // Request next animation frame
+	requestAnimationFrame(animateLight);
 }
 
-// Draws the scene, including setting up projection and model-view matrices.
 function draw() {
-	gl.clearColor(1, 1, 1, 1); // Set background color to white
-	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // Clear buffers
+	gl.clearColor(1, 1, 1, 1);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-	const projection = m4.perspective(Math.PI / 8, 1, 1, 100); // Perspective projection matrix
-	const modelView = ball.getViewMatrix(); // View matrix from trackball interaction
+	const projection = m4.perspective(Math.PI / 8, 1, 1, 100);
+	const modelView = ball.getViewMatrix();
 
 	const rotateToPointZero = m4.axisRotation(
 		[Math.SQRT1_2, Math.SQRT1_2, 0],
 		0.7,
-	); // Rotation matrix for alignment
-	const translateToPointZero = m4.translation(0, 0, -80); // Translation matrix
+	);
+	const translateToPointZero = m4.translation(0, 0, -80);
 
-	const matAcc0 = m4.multiply(rotateToPointZero, modelView); // Combined rotation and view matrix
-	const matAcc1 = m4.multiply(translateToPointZero, matAcc0); // Final model-view matrix
+	const matAcc0 = m4.multiply(rotateToPointZero, modelView);
+	const matAcc1 = m4.multiply(translateToPointZero, matAcc0);
 
-	const modelViewProjection = m4.multiply(projection, matAcc1); // Model-view-projection matrix
-	gl.uniformMatrix4fv(program.matrixUni, false, modelViewProjection); // Pass to shader
+	const modelViewProjection = m4.multiply(projection, matAcc1);
+	gl.uniformMatrix4fv(program.matrixUni, false, modelViewProjection);
 
-	const normalMatrix = m4.transpose(m4.inverse(matAcc1)); // Normal matrix
-	gl.uniformMatrix4fv(program.normalMatrixUni, false, normalMatrix); // Pass to shader
+	const normalMatrix = m4.transpose(m4.inverse(matAcc1));
+	gl.uniformMatrix4fv(program.normalMatrixUni, false, normalMatrix);
 
-	// Set lighting and material properties
-	gl.uniform3fv(program.viewPositionUni, [0.0, 0.0, 5.0]); // Camera position
-	gl.uniform3f(program.ambientColorUni, 0.2, 0.2, 0.2); // Ambient light
-	gl.uniform3f(program.diffuseColorUni, 0.7, 0.7, 0.7); // Diffuse light
-	gl.uniform3f(program.specularColorUni, 1.0, 1.0, 1.0); // Specular light
-	gl.uniform1f(program.shininessUni, 32.0); // Shininess factor
+	gl.uniform3fv(program.viewPositionUni, [0.0, 0.0, 5.0]);
+	gl.uniform3f(program.ambientColorUni, 0.2, 0.2, 0.2);
+	gl.uniform3f(program.diffuseColorUni, 0.7, 0.7, 0.7);
+	gl.uniform3f(program.specularColorUni, 1.0, 1.0, 1.0);
+	gl.uniform1f(program.shininessUni, 32.0);
 
-	surface.Draw(gl, program); // Draw the surface
+	surface.bindTextures(gl, program);
+	surface.draw(gl, program);
 }
 
-// Initializes WebGL, the shader program, surface model, and UI controls.
 function init() {
 	try {
 		const canvas = document.querySelector("canvas");
@@ -111,22 +105,21 @@ function init() {
 		if (!gl) {
 			throw "Browser does not support WebGL";
 		}
-		ball = new TrackballRotator(canvas, draw, 0); // Enable trackball rotation
+		ball = new TrackballRotator(canvas, draw, 0);
 
-		initShaderProgram(); // Initialize shaders
-		initSurface(); // Initialize the surface model
-		gl.enable(gl.DEPTH_TEST); // Enable depth testing
+		initShaderProgram();
+		initSurface();
+		gl.enable(gl.DEPTH_TEST);
 
-		setupUIControls(); // Set up UI controls
-		draw(); // Initial draw
-		animateLight(0); // Start light animation
+		setupUIControls();
+		draw();
+		animateLight(0);
 	} catch (e) {
-		console.error(`Initialization error: ${e}`); // Log initialization errors
+		console.error(`Initialization error: ${e}`);
 		const errorMessage = document.createElement("p");
 		errorMessage.textContent = `Sorry, could not initialize the WebGL graphics context: ${e}`;
-		document.body.appendChild(errorMessage); // Display error message
+		document.body.appendChild(errorMessage);
 	}
 }
 
-// Waits for the DOM to fully load before initializing.
 document.addEventListener("DOMContentLoaded", init);
