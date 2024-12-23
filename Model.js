@@ -11,6 +11,8 @@ export class Model {
 		this.texCoords = [];
 		this.tangents = [];
 		this.textures = {};
+		this.rotationCenter = { u: 0.5, v: 0.5 };
+		this.rotationAngle = 0;
 	}
 
 	createSurfaceData() {
@@ -32,9 +34,11 @@ export class Model {
 		const dv = (vMax - vMin) / this.vSteps; // Step size in V
 
 		// Generate U lines
-		for (let u = uMin; u <= uMax; u += du) {
+		for (let uIndex = 0; uIndex <= this.uSteps; uIndex++) {
+			const u = uMin + uIndex * du;
 			const uLine = [];
-			for (let v = vMin; v <= vMax; v += dv) {
+			for (let vIndex = 0; vIndex <= this.vSteps; vIndex++) {
+				const v = vMin + vIndex * dv;
 				// Calculate Wellenkugel coordinates
 				let x = u * Math.cos(Math.cos(u)) * Math.cos(v);
 				let y = u * Math.cos(Math.cos(u)) * Math.sin(v);
@@ -47,11 +51,8 @@ export class Model {
 
 		// Generate V lines
 		for (let vIndex = 0; vIndex <= this.vSteps; vIndex++) {
-			const vLine = [];
-			for (let uIndex = 0; uIndex <= this.uSteps; uIndex++) {
-				vLine.push(this.uLines[uIndex][vIndex]);
-			}
-			this.vLines.push(vLine); // Add V line
+			const vLine = this.uLines.map((uLine) => uLine[vIndex]);
+			this.vLines.push(vLine);
 		}
 	}
 
@@ -121,7 +122,7 @@ export class Model {
 	generateTangents() {
 		for (let uIndex = 0; uIndex <= this.uSteps; uIndex++) {
 			for (let vIndex = 0; vIndex <= this.vSteps; vIndex++) {
-				this.tangents.push(1, 0, 0); // Placeholder tangent vector
+				this.tangents.push(1, 0, 0);
 			}
 		}
 	}
@@ -156,7 +157,7 @@ export class Model {
 		const border = 0;
 		const srcFormat = gl.RGBA;
 		const srcType = gl.UNSIGNED_BYTE;
-		const pixel = new Uint8Array([0, 0, 255, 255]); // blue
+		const pixel = new Uint8Array([0, 0, 0, 0]);
 		gl.texImage2D(
 			gl.TEXTURE_2D,
 			level,
@@ -281,6 +282,33 @@ export class Model {
 
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
 		gl.drawElements(gl.TRIANGLES, this.indices.length, gl.UNSIGNED_SHORT, 0);
+	}
+
+	rotateTextureCoordinates(angle) {
+		this.rotationAngle = angle;
+		const cosAngle = Math.cos(angle);
+		const sinAngle = Math.sin(angle);
+		const { u: centerU, v: centerV } = this.rotationCenter;
+		for (let i = 0; i < this.texCoords.length; i += 2) {
+			const u = this.texCoords[i] - centerU;
+			const v = this.texCoords[i + 1] - centerV;
+			this.texCoords[i] = u * cosAngle - v * sinAngle + centerU;
+			this.texCoords[i + 1] = u * sinAngle + v * cosAngle + centerV;
+		}
+	}
+	moveRotationCenter(deltaU, deltaV) {
+		this.rotationCenter.u += deltaU;
+		this.rotationCenter.v += deltaV;
+		this.rotationCenter.u = Math.max(0, Math.min(1, this.rotationCenter.u));
+		this.rotationCenter.v = Math.max(0, Math.min(1, this.rotationCenter.v));
+	}
+	updateTexCoordBuffer(gl) {
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer);
+		gl.bufferData(
+			gl.ARRAY_BUFFER,
+			new Float32Array(this.texCoords),
+			gl.STATIC_DRAW,
+		);
 	}
 }
 
